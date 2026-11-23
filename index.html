@@ -152,11 +152,11 @@
 
   // ---------- Original roster (all names, roles and rooms are authored for Arisu Office) ----------
   const ROOMS = {
-    command:  { label: "Command Deck",   x: 0.10, y: 0.12, color: "#a48bff" },
-    research: { label: "Research Lab",   x: 0.60, y: 0.14, color: "#3dd6c6" },
-    content:  { label: "Content Studio", x: 0.12, y: 0.58, color: "#ff6fa3" },
-    ops:      { label: "Ops Room",       x: 0.58, y: 0.60, color: "#ffc857" },
-    brain:    { label: "Shared Brain",   x: 0.36, y: 0.36, color: "#7ad7ff" }
+    command:  { label: "Command Deck",   x: 0.10, y: 0.12, w: 0.36, h: 0.30, color: "#a48bff" },
+    research: { label: "Research Lab",   x: 0.60, y: 0.14, w: 0.36, h: 0.30, color: "#3dd6c6" },
+    content:  { label: "Content Studio", x: 0.12, y: 0.60, w: 0.36, h: 0.28, color: "#ff6fa3" },
+    ops:      { label: "Ops Room",       x: 0.58, y: 0.60, w: 0.36, h: 0.28, color: "#ffc857" },
+    brain:    { label: "Shared Brain",   x: 0.40, y: 0.44, w: 0.20, h: 0.13, color: "#7ad7ff" }
   };
 
   const AGENTS = [
@@ -218,8 +218,8 @@
   // ---------- Layout: map room fractions to pixel positions for the isometric floor ----------
   function roomCenter(roomId, i, n) {
     const r = ROOMS[roomId];
-    const cx = canvas.width * (r.x + 0.13);
-    const cy = canvas.height * (r.y + 0.14);
+    const cx = canvas.width * (r.x + r.w / 2);
+    const cy = canvas.height * (r.y + r.h / 2 + 0.02);
     const angle = (i / Math.max(n, 1)) * Math.PI * 2;
     const rad = n > 1 ? 34 : 0;
     return { x: cx + Math.cos(angle) * rad, y: cy + Math.sin(angle) * rad * 0.5 };
@@ -235,7 +235,7 @@
 
     // rooms as soft isometric-looking tiles
     for (const [id, r] of Object.entries(ROOMS)) {
-      const w = canvas.width * 0.36, h = canvas.height * 0.3;
+      const w = canvas.width * r.w, h = canvas.height * r.h;
       const x = canvas.width * r.x, y = canvas.height * r.y;
       ctx.fillStyle = "#171a27";
       ctx.strokeStyle = r.color + "aa";
