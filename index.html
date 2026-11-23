@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arisu Office</title>
+<style>
+  :root {
+    --bg: #0c0d13;
+    --panel: #151722;
+    --panel-2: #1d2030;
+    --line: #2a2f45;
+    --text: #e8eaf6;
+    --muted: #8a90b0;
+    --accent: #ff8a3d;
+    --teal: #3dd6c6;
+    --violet: #a48bff;
+    --ok: #5fdc8a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px; border-bottom: 1px solid var(--line);
+    flex-wrap: wrap; gap: 8px;
+  }
+  .brand { font-weight: 800; letter-spacing: .14em; font-size: 18px; }
+  .brand span { color: var(--accent); }
+  .stats { color: var(--muted); font-size: 13px; display: flex; gap: 14px; flex-wrap: wrap; }
+  .stats b { color: var(--text); }
+  main {
+    display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px;
+    padding: 14px; max-width: 1280px; margin: 0 auto;
+  }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; padding: 14px;
+  }
+  .card h2 {
+    margin: 0 0 10px; font-size: 13px; text-transform: uppercase;
+    letter-spacing: .12em; color: var(--muted); font-weight: 700;
+  }
+  #office-wrap { position: relative; }
+  canvas#office {
+    width: 100%; height: auto; display: block; border-radius: 10px;
+    background: #0f1119; cursor: pointer;
+  }
+  .legend { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: var(--muted); }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+  .agents { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .agent {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px;
+    padding: 9px; cursor: pointer; transition: border-color .15s;
+  }
+  .agent:hover, .agent.sel { border-color: var(--accent); }
+  .agent .name { font-weight: 700; font-size: 13px; }
+  .agent .role { color: var(--muted); font-size: 11px; margin-top: 2px; }
+  .tag {
+    display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 6px;
+    margin-top: 6px; background: #252a40; color: var(--teal);
+  }
+  .status { font-size: 10px; margin-top: 4px; font-weight: 700; }
+  .detail h3 { margin: 0 0 4px; font-size: 16px; }
+  .detail p { margin: 6px 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+  .task-list { list-style: none; padding: 0; margin: 8px 0 0; }
+  .task-list li {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 10px; margin-bottom: 6px; font-size: 13px;
+    display: flex; justify-content: space-between; gap: 8px; align-items: center;
+  }
+  .btn {
+    background: var(--accent); color: #111; border: 0; border-radius: 8px;
+    padding: 6px 10px; font-weight: 700; font-size: 12px; cursor: pointer;
+  }
+  .btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .log { font-size: 12px; color: var(--muted); max-height: 220px; overflow: auto; line-height: 1.6; }
+  .log div b { color: var(--text); }
+  .row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  input[type=text] {
+    flex: 1; min-width: 0; background: var(--panel-2); border: 1px solid var(--line);
+    color: var(--text); border-radius: 8px; padding: 8px 10px; font-size: 13px;
+  }
+  .side { display: grid; gap: 14px; align-content: start; }
+  .mini-bar { height: 6px; background: #252a40; border-radius: 4px; overflow: hidden; margin-top: 6px; }
+  .mini-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--teal), var(--violet)); }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">ARISU <span>OFFICE</span></div>
+  <div class="stats">
+    <span>Agents <b id="s-agents">0</b></span>
+    <span>Working <b id="s-working">0</b></span>
+    <span>Open tasks <b id="s-tasks">0</b></span>
+  </div>
+</header>
+
+<main>
+  <section class="card" id="office-wrap">
+    <h2>Office floor</h2>
+    <canvas id="office" width="1000" height="620" aria-label="Isometric office with AI agents"></canvas>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--ok)"></i>Idle</span>
+      <span><i class="dot" style="background:var(--teal)"></i>Working</span>
+      <span><i class="dot" style="background:var(--accent)"></i>Needs review</span>
+      <span>Click an agent or a room to inspect it</span>
+    </div>
+
+    <h2 style="margin-top:16px">Agent roster</h2>
+    <div class="agents" id="roster"></div>
+  </section>
+
+  <aside class="side">
+    <section class="card detail" id="detail">
+      <h2>Inspector</h2>
+      <h3 id="d-name">Select an agent</h3>
+      <div id="d-body"><p>Pick anyone on the floor to see their role, current job, and output.</p></div>
+    </section>
+
+    <section class="card">
+      <h2>Task queue</h2>
+      <div class="row">
+        <input type="text" id="new-task" placeholder="New task for the office...">
+        <button class="btn" id="add-task">Add</button>
+      </div>
+      <ul class="task-list" id="tasks"></ul>
+    </section>
+
+    <section class="card">
+      <h2>Shared brain</h2>
+      <div class="log" id="brain"></div>
+    </section>
+
+    <section class="card">
+      <h2>Activity</h2>
+      <div class="log" id="log"></div>
+    </section>
+  </aside>
+</main>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---------- Original roster (all names, roles and rooms are authored for Arisu Office) ----------
+  const ROOMS = {
+    command:  { label: "Command Deck",   x: 0.10, y: 0.12, color: "#a48bff" },
+    research: { label: "Research Lab",   x: 0.60, y: 0.14, color: "#3dd6c6" },
+    content:  { label: "Content Studio", x: 0.12, y: 0.58, color: "#ff6fa3" },
+    ops:      { label: "Ops Room",       x: 0.58, y: 0.60, color: "#ffc857" },
+    brain:    { label: "Shared Brain",   x: 0.36, y: 0.36, color: "#7ad7ff" }
+  };
+
+  const AGENTS = [
+    { id: "lead",    name: "Arisu",   role: "Chief of Staff",       room: "command",  status: "working", color: "#ff8a3d", job: "Sorting the task queue and assigning owners." },
+    { id: "scout",   name: "Pilar",   role: "Market Researcher",    room: "research", status: "working", color: "#3dd6c6", job: "Scanning three niche markets for demand signals." },
+    { id: "reader",  name: "Dario",   role: "Literature Analyst",   room: "research", status: "idle",    color: "#5fdc8a", job: "Waiting for a paper queue." },
+    { id: "git",     name: "Kiko",    role: "Repo Crawler",         room: "research", status: "working", color: "#7ad7ff", job: "Indexing open-source repos for tooling ideas." },
+    { id: "qa",      name: "Nela",    role: "Quality Reviewer",     room: "ops",      status: "review",  color: "#ff6fa3", job: "Checking the newsletter draft before send." },
+    { id: "books",   name: "Teo",     role: "Bookkeeper",           room: "ops",      status: "idle",    color: "#ffc857", job: "Reconciling this week's payouts." },
+    { id: "pipe",    name: "Maya",    role: "Sales Pipeline",       room: "ops",      status: "working", color: "#a48bff", job: "Following up on three open proposals." },
+    { id: "support", name: "Rey",     role: "Support Desk",         room: "ops",      status: "working", color: "#ff8a3d", job: "Answering the overnight inbox." },
+    { id: "script",  name: "Lia",     role: "Scriptwriter",         room: "content",  status: "working", color: "#ff6fa3", job: "Drafting a 60-second script on onboarding." },
+    { id: "video",   name: "Bong",    role: "Video Editor",         room: "content",  status: "idle",    color: "#7ad7ff", job: "Idle until footage arrives." },
+    { id: "social",  name: "Ysa",     role: "Social Scheduler",     room: "content",  status: "working", color: "#3dd6c6", job: "Queueing posts for the weekly calendar." },
+    { id: "design",  name: "Ren",     role: "Thumbnail Designer",   room: "content",  status: "review",  color: "#5fdc8a", job: "Waiting on feedback for two thumbnails." },
+    { id: "memo",    name: "Gio",     role: "Note Keeper",          room: "brain",    status: "working", color: "#ffc857", job: "Filing meeting notes into the shared brain." },
+    { id: "index",   name: "Sol",     role: "Knowledge Indexer",    room: "brain",    status: "idle",    color: "#a48bff", job: "Re-indexing documents overnight." },
+    { id: "plan",    name: "Ina",     role: "Planner",              room: "command",  status: "working", color: "#7ad7ff", job: "Building next week's milestones." },
+    { id: "risk",    name: "Paco",    role: "Risk Watcher",         room: "command",  status: "idle",    color: "#ff6fa3", job: "No alerts in the last 24 hours." },
+    { id: "hr",      name: "Mina",    role: "Onboarding Guide",     room: "command",  status: "idle",    color: "#5fdc8a", job: "Waiting for a new hire brief." },
+    { id: "tests",   name: "Ben",     role: "Automation Tester",    room: "ops",      status: "working", color: "#ffc857", job: "Running nightly checks on the sales bot." }
+  ];
+
+  let state = {
+    agents: AGENTS.map(a => ({ ...a })),
+    tasks: [
+      { id: 1, text: "Review newsletter draft", owner: "qa",    done: false },
+      { id: 2, text: "Publish weekly reel",     owner: "video", done: false },
+      { id: 3, text: "Send proposal follow-ups", owner: "pipe", done: false }
+    ],
+    selected: null
+  };
+
+  const $ = s => document.querySelector(s);
+  const canvas = $("#office");
+  const ctx = canvas.getContext("2d");
+
+  // ---------- Persistence (per-viewer convenience only) ----------
+  const KEY = "arisu-office-v1";
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify({ tasks: state.tasks })); } catch (_) {}
+  }
+  function load() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw) {
+        const d = JSON.parse(raw);
+        if (Array.isArray(d.tasks)) state.tasks = d.tasks;
+      }
+    } catch (_) {}
+  }
+
+  function log(html) {
+    const el = $("#log");
+    const t = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    el.insertAdjacentHTML("afterbegin", `<div><b>${t}</b> ${html}</div>`);
+  }
+
+  // ---------- Layout: map room fractions to pixel positions for the isometric floor ----------
+  function roomCenter(roomId, i, n) {
+    const r = ROOMS[roomId];
+    const cx = canvas.width * (r.x + 0.13);
+    const cy = canvas.height * (r.y + 0.14);
+    const angle = (i / Math.max(n, 1)) * Math.PI * 2;
+    const rad = n > 1 ? 34 : 0;
+    return { x: cx + Math.cos(angle) * rad, y: cy + Math.sin(angle) * rad * 0.5 };
+  }
+
+  function drawFloor() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // subtle grid
+    ctx.strokeStyle = "#171b29";
+    ctx.lineWidth = 1;
+    for (let x = 0; x < canvas.width; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke(); }
+    for (let y = 0; y < canvas.height; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); }
+
+    // rooms as soft isometric-looking tiles
+    for (const [id, r] of Object.entries(ROOMS)) {
+      const w = canvas.width * 0.36, h = canvas.height * 0.3;
+      const x = canvas.width * r.x, y = canvas.height * r.y;
+      ctx.fillStyle = "#171a27";
+      ctx.strokeStyle = r.color + "aa";
+      ctx.lineWidth = 2;
+      roundRect(x, y, w, h, 14);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = r.color;
+      ctx.font = "700 13px system-ui, sans-serif";
+      ctx.fillText(r.label.toUpperCase(), x + 12, y + 20);
+    }
+  }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  const positions = {};
+  function computePositions() {
+    for (const roomId of Object.keys(ROOMS)) {
+      const members = state.agents.filter(a => a.room === roomId);
+      members.forEach((a, i) => { positions[a.id] = roomCenter(roomId, i, members.length); });
+    }
+  }
+
+  let pulse = 0;
+  function drawAgents() {
+    pulse += 0.06;
+    for (const a of state.agents) {
+      const p = positions[a.id]; if (!p) continue;
+      const ring = a.status === "working" ? "#3dd6c6" : a.status === "review" ? "#ff8a3d" : "#5fdc8a";
+      if (a.status === "working") {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 13 + Math.sin(pulse) * 2, 0, Math.PI * 2);
+        ctx.strokeStyle = ring + "55"; ctx.lineWidth = 2; ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 10, 0, Math.PI * 2);
+      ctx.fillStyle = a.color; ctx.fill();
+      ctx.strokeStyle = state.selected === a.id ? "#ffffff" : ring; ctx.lineWidth = state.selected === a.id ? 3 : 2; ctx.stroke();
+      ctx.fillStyle = "#e8eaf6";
+      ctx.font = "600 11px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(a.name, p.x, p.y + 24);
+      ctx.textAlign = "left";
+    }
+  }
+
+  function render() {
+    drawFloor();
+    drawAgents();
+    requestAnimationFrame(render);
+  }
+
+  canvas.addEventListener("click", e => {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    let hit = null, best = 18;
+    for (const a of state.agents) {
+      const p = positions[a.id]; if (!p) continue;
+      const d = Math.hypot(p.x - x, p.y - y);
+      if (d < best) { best = d; hit = a.id; }
+    }
+    if (hit) select(hit);
+  });
+
+  // ---------- Panels ----------
+  function renderRoster() {
+    $("#roster").innerHTML = state.agents.map(a => `
+      <div class="agent ${state.selected === a.id ? "sel" : ""}" data-id="${a.id}">
+        <div class="name" style="color:${a.color}">${a.name}</div>
+        <div class="role">${a.role}</div>
+        <span class="tag">${ROOMS[a.room].label}</span>
+        <div class="status" style="color:${statusColor(a.status)}">${statusLabel(a.status)}</div>
+      </div>`).join("");
+    document.querySelectorAll(".agent").forEach(el => el.addEventListener("click", () => select(el.dataset.id)));
+  }
+
+  function statusLabel(s) { return s === "working" ? "WORKING" : s === "review" ? "NEEDS REVIEW" : "IDLE"; }
+  function statusColor(s) { return s === "working" ? "var(--teal)" : s === "review" ? "var(--accent)" : "var(--ok)"; }
+
+  function select(id) {
+    state.selected = id;
+    const a = state.agents.find(x => x.id === id);
+    $("#d-name").textContent = a.name + " · " + a.role;
+    const myTasks = state.tasks.filter(t => t.owner === id && !t.done);
+    $("#d-body").innerHTML = `
+      <p><b style="color:var(--text)">Room:</b> ${ROOMS[a.room].label}</p>
+      <p><b style="color:var(--text)">Status:</b> <span style="color:${statusColor(a.status)}">${statusLabel(a.status)}</span></p>
+      <p>${a.job}</p>
+      <p><b style="color:var(--text)">Open tasks:</b> ${myTasks.length ? myTasks.map(t => t.text).join("; ") : "none"}</p>`;
+    renderRoster();
+  }
+
+  function renderTasks() {
+    const open = state.tasks.filter(t => !t.done).length;
+    $("#s-tasks").textContent = open;
+    $("#s-working").textContent = state.agents.filter(a => a.status === "working").length;
+    $("#s-agents").textContent = state.agents.length;
+    $("#tasks").innerHTML = state.tasks.map(t => {
+      const owner = state.agents.find(a => a.id === t.owner);
+      return `<li>
+        <span style="${t.done ? "text-decoration:line-through;color:var(--muted)" : ""}">${escapeHtml(t.text)}
+          <br><small style="color:var(--muted)">${owner ? owner.name : "unassigned"}</small></span>
+        <span style="display:flex;gap:6px">
+          <button class="btn ghost" data-act="toggle" data-id="${t.id}">${t.done ? "Reopen" : "Done"}</button>
+        </span></li>`;
+    }).join("") || `<li>No tasks yet.</li>`;
+    document.querySelectorAll("[data-act=toggle]").forEach(b => b.addEventListener("click", () => {
+      const t = state.tasks.find(x => x.id === +b.dataset.id);
+      t.done = !t.done;
+      if (t.done) log(`<b>${owner(t)}</b> closed "${escapeHtml(t.text)}"`);
+      save(); renderTasks();
+    }));
+  }
+
+  function owner(t) { const a = state.agents.find(x => x.id === t.owner); return a ? a.name : "Unassigned"; }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  $("#add-task").addEventListener("click", addTask);
+  $("#new-task").addEventListener("keydown", e => { if (e.key === "Enter") addTask(); });
+  function addTask() {
+    const input = $("#new-task");
+    const text = input.value.trim();
+    if (!text) return;
+    const owners = state.agents.filter(a => a.status !== "review");
+    // Arisu (Chief of Staff) assigns the least-busy agent
+    const load = a => state.tasks.filter(t => t.owner === a.id && !t.done).length;
+    const pick = owners.slice().sort((a, b) => load(a) - load(b))[0];
+    const id = Date.now();
+    state.tasks.push({ id, text, owner: pick.id, done: false });
+    log(`<b>Arisu</b> assigned "${escapeHtml(text)}" to <b>${pick.name}</b>`);
+    input.value = "";
+    save(); renderTasks();
+  }
+
+  // ---------- Shared brain (static notes the office reads from) ----------
+  const BRAIN = [
+    ["Brand voice", "Plain, warm, and short. No jargon in first lines."],
+    ["Weekly rhythm", "Mon: planning · Wed: content batch · Fri: review and invoices."],
+    ["Escalation", "Anything touching money or customers goes to Nela before it ships."]
+  ];
+  $("#brain").innerHTML = BRAIN.map(([k, v]) => `<div><b>${k}:</b> ${v}</div>`).join("");
+
+  // ---------- Boot ----------
+  function tick() {
+    // Gentle simulated activity so the floor feels alive; purely local.
+    const pick = state.agents[Math.floor(Math.random() * state.agents.length)];
+    const flip = Math.random();
+    if (flip < 0.5 && pick.status !== "review") {
+      pick.status = pick.status === "working" ? "idle" : "working";
+      log(`<b>${pick.name}</b> is now ${statusLabel(pick.status).toLowerCase()}`);
+    }
+    renderRoster(); renderTasks();
+  }
+
+  load();
+  computePositions();
+  renderRoster();
+  renderTasks();
+  log("<b>Arisu</b> opened the office.");
+  select("lead");
+  setInterval(tick, 6000);
+  requestAnimationFrame(render);
+})();
+</script>
+</body>
+</html>
