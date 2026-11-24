@@ -11,10 +11,8 @@ import { encrypt, decrypt } from './secrets.js';
 import { localChecks } from './checks.js';
 import { loadAgreement } from './agreement.js';
 import { ROOT } from './config.js';
-
-class HttpError extends Error {
-  constructor(status, message, extra = {}) { super(message); this.status = status; this.extra = extra; }
-}
+import { HttpError, str } from './util.js';
+import { registerExtras } from './extras.js';
 
 const PUBLIC_DIR = path.join(ROOT, 'public');
 const TYPES = {
@@ -24,13 +22,6 @@ const TYPES = {
 
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
 const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/;
-
-function str(v, { max, min = 0, field }) {
-  const s = typeof v === 'string' ? v.trim() : '';
-  if (s.length < min) throw new HttpError(400, `${field} is required.`);
-  if (s.length > max) throw new HttpError(400, `${field} is too long (max ${max}).`);
-  return s;
-}
 
 export function createApp(cfg) {
   const db = openDb(cfg.dbPath);
@@ -72,6 +63,9 @@ export function createApp(cfg) {
     if (!c || (user.role === 'client' && user.client_id !== c.id)) throw new HttpError(404, 'Client not found.');
     return c;
   }
+  // Pinned notes are sent to the AI as background about the business.
+  const withNotes = (c) => ({ ...c, pinned_notes: db.prepare('SELECT title, body FROM notes WHERE client_id = ? AND pinned = 1 ORDER BY id DESC LIMIT 8').all(c.id) });
+
   function draftFor(user, id) {
     const d = db.prepare('SELECT * FROM drafts WHERE id = ?').get(Number(id));
     if (!d || (user.role === 'client' && user.client_id !== d.client_id)) throw new HttpError(404, 'Draft not found.');
@@ -287,7 +281,7 @@ export function createApp(cfg) {
 
   // ---------- AI agents ----------
   route('POST', '/api/clients/:id/ideas', { perm: 'drafts:generate' }, async ({ user, params, body }) => {
-    const c = clientFor(user, params.id);
+    const c = withNotes(clientFor(user, params.id));
     takeAiQuota(user);
     try {
       const ideas = await withJob('scout', c.id, () => ai.ideas(c, { goal: str(body.goal ?? '', { max: 300, field: 'Goal' }) }));
@@ -297,7 +291,7 @@ export function createApp(cfg) {
   });
 
   route('POST', '/api/clients/:id/generate', { perm: 'drafts:generate' }, async ({ user, params, body }) => {
-    const c = clientFor(user, params.id);
+    const c = withNotes(clientFor(user, params.id));
     const topic = str(body.topic, { max: 500, min: 3, field: 'Topic' });
     const goal = str(body.goal ?? '', { max: 200, field: 'Goal' });
     const count = Math.min(Math.max(parseInt(body.count ?? 3, 10) || 3, 1), 5);
@@ -321,7 +315,7 @@ export function createApp(cfg) {
   });
 
   route('POST', '/api/clients/:id/replies', { perm: 'drafts:generate' }, async ({ user, params, body }) => {
-    const c = clientFor(user, params.id);
+    const c = withNotes(clientFor(user, params.id));
     const comment = str(body.comment, { max: 1000, min: 1, field: 'Comment' });
     takeAiQuota(user);
     let r;
@@ -453,7 +447,10 @@ export function createApp(cfg) {
   });
 
   // ---------- office floor, audit, admin ----------
-  const WIRED = { lead: null, scout: 'scout', script: 'script', qa: 'qa', support: 'support', social: 'social' };
+  // Every agent on the floor now does real work. Each maps to the job name it records when it runs ("lead" = any job).
+  const WIRED = { lead: null, scout: 'scout', script: 'script', qa: 'qa', support: 'support', social: 'social',
+    plan: 'plan', design: 'design', video: 'video', reader: 'reader', pipe: 'pipe', memo: 'memo', hr: 'hr', git: 'git',
+    books: 'books', index: 'index', risk: 'risk', tests: 'tests' };
   route('GET', '/api/office', { perm: 'clients:read' }, ({ user }) => {
     const since = Date.now() - 5 * 60 * 1000; // a "running" job older than 5 minutes is stale
     const scope = user.role === 'client' ? ' AND client_id = ' + Number(user.client_id) : '';
@@ -480,6 +477,8 @@ export function createApp(cfg) {
       return { configured_model: cfg.model || null, review_model: cfg.reviewModel || null, available: await ai.listModels() };
     } catch (e) { aiGuard(e); }
   });
+
+  registerExtras({ cfg, db, ai, route, audit, userActor, agentActor, clientFor, takeAiQuota, withJob, aiGuard, withNotes });
 
   // ---------- request pipeline ----------
   async function readBody(req) {

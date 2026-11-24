@@ -9,7 +9,8 @@ No dependencies. It uses only what ships with Node 22.5+ (built-in SQLite, scryp
 ```bash
 cp .env.example .env      # then fill in OPENAI_API_KEY and OPENAI_MODEL
 npm start                 # http://127.0.0.1:3000
-npm test                  # 28 tests, uses fake OpenAI/Facebook servers
+npm test                  # 46 tests, uses fake OpenAI/Facebook servers
+npm run doctor            # checks your REAL OpenAI key, model and Facebook tokens
 ```
 
 1. Open the app. The first screen creates the **owner** account (do this immediately after deploying).
@@ -20,14 +21,42 @@ npm test                  # 28 tests, uses fake OpenAI/Facebook servers
 
 ## What is real and what is not
 
-| Part | Status |
-|---|---|
-| Login, roles, client isolation, activity log | Real |
-| Agreement that users must accept (re-asked when the text changes) | Real |
-| Pilar (ideas), Lia (drafts), Nela (review), Rey (reply drafts) | Real, call the OpenAI Responses API |
-| Ysa (publisher) | Real, posts to a Facebook Page via the Graph API, only after approval, only when `FB_PUBLISH_ENABLED=true` |
-| The 12 other agents on the office floor | Not connected. They are shown dimmed. |
-| Payments / billing / invoicing | **Not built.** Charge clients outside the app for now. |
+All 18 agents are connected. Every output is text for a person to read, approve, or send. Nothing acts alone.
+
+| Agent | Job | Where |
+|---|---|---|
+| Arisu | Daily briefing, coordinates | Office |
+| Pilar | Post ideas | Posts |
+| Lia | Post drafts | Posts |
+| Nela | Reviews each draft | Posts |
+| Rey | Drafts comment replies (never sent by the system) | Posts |
+| Ysa | Publishes approved text to Facebook | Posts |
+| Ina | Monthly content plan | Studio |
+| Ren | Visual brief for a post (cannot make images) | Studio |
+| Bong | Reel plan (cannot edit video) | Studio |
+| Dario | Analyses text you paste in (no web browsing) | Studio |
+| Maya | Follow-up message draft | Studio |
+| Kiko | Reads recent Page post counts, says what to try | Studio |
+| Mina | Proposes a brand profile; a person applies it | Studio |
+| Gio | Tidies notes; pinned notes become AI background | Studio |
+| Sol | Keyword search over notes, drafts, agent output | Studio |
+| Teo | Invoicing; drafts reminder wording only | Invoices |
+| Paco | Watches stale drafts, failed posts, overdue invoices (no AI) | Office |
+| Ben | Tests your real OpenAI key, model, Facebook tokens | Team & AI |
+
+Not built: online payment collection. Invoices are tracked manually (see below).
+
+**Tested against fake OpenAI and Facebook servers only.** Run **Team & AI > Run system check** (or `npm run doctor`) with your real keys before relying on it. Kiko's Facebook read (`/posts` with counts) and the Graph version you use are the parts most likely to need adjusting against the live API.
+
+## Invoices
+
+- Prices are typed by a person. The server adds them up in exact centavos. The AI never touches an amount.
+- Flow: draft > sent (locked; fix mistakes by voiding) > client may report a payment with a reference > a team member confirms > paid. Only a person on the team can mark paid.
+- Clients see only invoices that were sent to them. Overdue is shown automatically (Asia/Manila date; set `TIMEZONE` to change).
+- Teo drafts reminder wording from database facts (number, amount, due date). A person sends it.
+- Print / Save as PDF from the invoice page.
+- These are billing statements, not BIR official receipts. Ask your accountant what you need.
+- To collect money online later you would add a provider (for example PayMongo, Xendit, Stripe) with your own merchant account. That is not included.
 
 ## The approval rules (enforced by the server, covered by tests)
 
@@ -84,8 +113,10 @@ While your Meta app is in development mode it works only for Pages where you hol
 ## Layout
 
 ```
-server/   config, db (SQLite), auth, permissions, ai (OpenAI), facebook (Graph API), app (routes)
+server/   config, db (SQLite), auth, permissions, ai (OpenAI), facebook (Graph API), app + extras (routes), doctor (system check)
 public/   index.html, style.css, app.js (no build step)
-test/     app.test.js
+test/     app.test.js, extras.test.js, harness.js
+docs/     DEPLOY.md (how to get a live link)
+Dockerfile, render.yaml
 AGREEMENT.md   the text users must accept
 ```

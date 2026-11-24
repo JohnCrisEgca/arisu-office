@@ -1,0 +1,29 @@
+# Render Blueprint. Check Render's current docs: field names and plan names change.
+# SQLite needs a persistent disk, which Render only offers on paid instances.
+services:
+  - type: web
+    name: arisu-office
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    disk:
+      name: arisu-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /data
+      - key: TRUST_PROXY
+        value: "true"
+      - key: FB_PUBLISH_ENABLED
+        value: "false"
+      - key: SETUP_TOKEN
+        generateValue: true
+      - key: APP_SECRET
+        generateValue: true
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        sync: false

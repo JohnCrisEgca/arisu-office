@@ -21,7 +21,9 @@ Language: ${c.language}
 Voice: ${c.brand_voice || '(not provided)'}
 Audience: ${c.audience || '(not provided)'}
 Never say: ${splitList(c.do_not_say).join('; ') || '(nothing listed)'}
-</brand>`;
+</brand>` + (c.pinned_notes?.length
+    ? `\n<notes>\n${c.pinned_notes.map((n) => `- ${String(n.title).slice(0, 120)}: ${String(n.body).slice(0, 600)}`).join('\n')}\n</notes>`
+    : '');
 }
 
 const clip = (v, n) => String(v ?? '').slice(0, n);
@@ -45,6 +47,83 @@ function outputText(data) {
 }
 
 const scrub = (s) => String(s).replace(/sk-[A-Za-z0-9_\-*.]+/g, '[key hidden]').slice(0, 200);
+
+// ---------- the other agents. Each returns advice or draft text for a person to read; none can act. ----------
+const arr = (v, n) => (Array.isArray(v) ? v.slice(0, n) : []);
+const strs = (v, n, max) => arr(v, n).map((x) => clip(typeof x === 'string' ? x : JSON.stringify(x), max)).filter(Boolean);
+const data = (t) => `<untrusted>\n${t}\n</untrusted>`;
+
+const SPECS = {
+  // Ina
+  planner: {
+    role: 'content-planner',
+    task: (c, i) => `${brandBlock(c)}\nPlan Facebook content for ${i.month}. Goal: ${clip(i.goal, 200) || 'steady engagement'}. About ${i.perWeek} posts per week.\n` +
+      'JSON: {"items":[{"date_hint":"Week 1 Tue","theme":"","format":"photo|video|text|poll","topic":""}]}',
+    norm: (j) => ({ items: arr(j.items, 28).map((x) => ({ date_hint: clip(x?.date_hint, 40), theme: clip(x?.theme, 120), format: clip(x?.format, 20), topic: clip(x?.topic, 300) })).filter((x) => x.topic) })
+  },
+  // Ren
+  designer: {
+    role: 'visual-brief-writer',
+    task: (c, i) => `${brandBlock(c)}\nWrite a short creative brief for the visual that goes with this post. You cannot make images; describe what a person should photograph or design.\nPost:\n${data(clip(i.text, 3000))}\n` +
+      'JSON: {"visual_idea":"","text_overlay":"","alt_text":"","format":"","notes":""}',
+    norm: (j) => ({ visual_idea: clip(j.visual_idea, 600), text_overlay: clip(j.text_overlay, 120), alt_text: clip(j.alt_text, 300), format: clip(j.format, 40), notes: clip(j.notes, 400) })
+  },
+  // Bong
+  video: {
+    role: 'reel-scriptwriter',
+    task: (c, i) => `${brandBlock(c)}\nWrite a short Facebook Reel plan (under 45 seconds) for a person to film and edit. You cannot edit video.\nTopic or post:\n${data(clip(i.text, 3000))}\n` +
+      'JSON: {"hook":"","shots":[{"scene":"","show":"","say":""}],"caption":"","length_seconds":30,"cta":""}',
+    norm: (j) => ({
+      hook: clip(j.hook, 200),
+      shots: arr(j.shots, 10).map((s) => ({ scene: clip(s?.scene, 80), show: clip(s?.show, 300), say: clip(s?.say, 300) })).filter((s) => s.show || s.say),
+      caption: clip(j.caption, 600), length_seconds: Math.min(Math.max(Number(j.length_seconds) || 30, 5), 90), cta: clip(j.cta, 200)
+    })
+  },
+  // Dario
+  analyst: {
+    role: 'trend-analyst',
+    task: (c, i) => `${brandBlock(c)}\nA person pasted competitor posts, reviews, or an article. Find what is useful for this business. Use only what is in the text.\n${data(clip(i.text, 4000))}\n` +
+      'JSON: {"summary":"","patterns":[""],"opportunities":[""],"risks":[""]}',
+    norm: (j) => ({ summary: clip(j.summary, 800), patterns: strs(j.patterns, 8, 300), opportunities: strs(j.opportunities, 8, 300), risks: strs(j.risks, 8, 300) })
+  },
+  // Maya
+  pipeline: {
+    role: 'sales-followup-writer',
+    task: (c, i) => `${brandBlock(c)}\nA person pasted a conversation or notes about a lead or open proposal. Draft ONE polite follow-up message for the person to send themselves. Do not promise prices, discounts or dates that are not in the text.\n${data(clip(i.text, 3000))}\n` +
+      'JSON: {"message":"","next_step":"","needs_human":false,"reason":""}',
+    norm: (j) => ({ message: clip(j.message, 1500), next_step: clip(j.next_step, 300), needs_human: j.needs_human !== false, reason: clip(j.reason, 300) })
+  },
+  // Teo (reminder wording only; every number comes from the software, never from the AI)
+  reminder: {
+    role: 'billing-reminder-writer',
+    task: (c, i) => `${brandBlock(c)}\nDraft a ${i.tone} payment reminder that the business owner will send to the client. Use ONLY these facts and mention no other amounts, fees, penalties, or legal action:\n` +
+      `From: ${i.biller}\nTo: ${i.clientName}\nInvoice: ${i.number}\nAmount: ${i.total}\nDue date: ${i.dueDate}\nDays overdue: ${i.daysOverdue}\nJSON: {"message":""}`,
+    norm: (j) => ({ message: clip(j.message, 1500) })
+  },
+  // Gio
+  notes: {
+    role: 'note-keeper',
+    task: (c, i) => `${brandBlock(c)}\nTurn these raw meeting notes or a chat into clean notes. Use only what is in the text.\n${data(clip(i.text, 6000))}\n` +
+      'JSON: {"title":"","summary":"","decisions":[""],"todos":[""]}',
+    norm: (j) => ({ title: clip(j.title, 120), summary: clip(j.summary, 1500), decisions: strs(j.decisions, 10, 300), todos: strs(j.todos, 12, 300) })
+  },
+  // Mina
+  onboarding: {
+    role: 'onboarding-guide',
+    task: (c, i) => `A new client's answers are below. Propose a brand profile for their Facebook content. Use only what the answers say; ask a question instead of guessing.\n${data(clip(i.text, 3000))}\n` +
+      'JSON: {"language":"","brand_voice":"","audience":"","do_not_say":"comma-separated phrases","questions":[""]}',
+    norm: (j) => ({ language: clip(j.language, 40), brand_voice: clip(j.brand_voice, 1500), audience: clip(j.audience, 600), do_not_say: clip(j.do_not_say, 800), questions: strs(j.questions, 8, 200) })
+  },
+  // Kiko
+  insights: {
+    role: 'page-insights-reader',
+    task: (c, i) => `${brandBlock(c)}\nThese are the most recent posts on the client's Facebook Page with their counts. Say what worked and what to try next. Use only these numbers; do not guess reach or sales.\n${data(clip(i.text, 6000))}\n` +
+      'JSON: {"summary":"","best":[""],"improve":[""],"next_ideas":[""]}',
+    norm: (j) => ({ summary: clip(j.summary, 800), best: strs(j.best, 6, 300), improve: strs(j.improve, 6, 300), next_ideas: strs(j.next_ideas, 8, 300) })
+  }
+};
+
+export const AGENT_KEYS = Object.keys(SPECS);
 
 export function createAi(cfg) {
   async function call({ model, role, task, maxTokens = 4000 }) {
@@ -133,6 +212,18 @@ export function createAi(cfg) {
           `<untrusted>\n${clip(comment, 1000)}\n</untrusted>\nJSON: {"reply":"","needs_human":false,"reason":""}`
       });
       return { reply: clip(j.reply, 1500), needs_human: j.needs_human !== false, reason: clip(j.reason, 300) };
+    },
+
+    async runAgent(key, client, input) {
+      const s = SPECS[key];
+      if (!s) throw new AiError('Unknown agent.', 400);
+      return s.norm(await call({ model: cfg.model, role: s.role, task: s.task(client, input) }));
+    },
+
+    // Tiny live request used by the system check.
+    async ping() {
+      const j = await call({ model: cfg.model, role: 'system-check', task: 'Reply with JSON {"ok":true}.', maxTokens: 600 });
+      return j.ok === true;
     },
 
     // Lists models the configured key can use, so the owner can pick a valid OPENAI_MODEL.

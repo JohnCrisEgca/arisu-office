@@ -90,6 +90,56 @@ CREATE TABLE IF NOT EXISTS usage (
   n INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (day, user_id)
 );
+CREATE TABLE IF NOT EXISTS notes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id INTEGER NOT NULL REFERENCES clients(id),
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  pinned INTEGER NOT NULL DEFAULT 0,
+  created_by INTEGER REFERENCES users(id),
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS agent_outputs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id INTEGER NOT NULL REFERENCES clients(id),
+  agent TEXT NOT NULL,
+  input TEXT NOT NULL DEFAULT '',
+  output TEXT NOT NULL,
+  created_by INTEGER REFERENCES users(id),
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS outputs_client ON agent_outputs(client_id, agent);
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS invoices (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id INTEGER NOT NULL REFERENCES clients(id),
+  number TEXT NOT NULL UNIQUE,
+  status TEXT NOT NULL DEFAULT 'draft'
+    CHECK (status IN ('draft','sent','payment_reported','paid','void')),
+  issue_date TEXT,
+  due_date TEXT NOT NULL,
+  notes TEXT NOT NULL DEFAULT '',
+  payment_instructions TEXT NOT NULL DEFAULT '',
+  total_cents INTEGER NOT NULL DEFAULT 0,
+  payment_ref TEXT NOT NULL DEFAULT '',
+  created_by INTEGER REFERENCES users(id),
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  sent_at INTEGER,
+  paid_at INTEGER,
+  paid_confirmed_by INTEGER REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS invoices_client ON invoices(client_id, status);
+CREATE TABLE IF NOT EXISTS invoice_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  invoice_id INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+  description TEXT NOT NULL,
+  qty INTEGER NOT NULL,
+  unit_cents INTEGER NOT NULL
+);
 `;
 
 export function openDb(file) {

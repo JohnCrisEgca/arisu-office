@@ -48,6 +48,7 @@ export function buildConfig(env = process.env, overrides = {}) {
     graphBase: (env.FB_GRAPH_BASE || 'https://graph.facebook.com').replace(/\/$/, ''),
     graphVersion: env.FB_GRAPH_VERSION || '',
     setupToken: env.SETUP_TOKEN || '',
+    timezone: env.TIMEZONE || 'Asia/Manila',
     sessionTtlMs: 7 * 24 * 3600 * 1000,
     ...overrides
   };

@@ -104,3 +104,27 @@ canvas#floor { width: 100%; height: auto; display: block; border-radius: 10px; b
   padding: 10px 14px; border-radius: 10px; box-shadow: 0 8px 30px #0008;
 }
 .toast.err { border-left-color: var(--bad); }
+
+ul.plain { margin: 4px 0; padding-left: 18px; }
+.kv > div { margin: 4px 0; }
+.alert { display: block; width: 100%; text-align: left; background: var(--panel-2); border: 1px solid var(--line); border-left: 4px solid var(--teal); border-radius: 8px; padding: 8px 12px; color: var(--text); font: inherit; cursor: pointer; }
+.alert.warn { border-left-color: var(--warn); } .alert.bad { border-left-color: var(--bad); } .alert.info { border-left-color: var(--violet); }
+.row.between { justify-content: space-between; align-items: flex-start; }
+.right { text-align: right; }
+.pre { white-space: pre-wrap; }
+.grow { flex: 1 1 240px; width: auto; } .qty { width: 80px; } .price { width: 130px; }
+.item-row input { width: auto; }
+.invoice-sheet { max-width: 800px; margin: 0 auto; }
+
+@media print {
+  html { color-scheme: light; }
+  body { background: #fff !important; color: #000 !important; }
+  header.top, .noprint, .toast { display: none !important; }
+  main { max-width: none; padding: 0; }
+  .card { background: #fff !important; color: #000 !important; border: 0 !important; box-shadow: none; padding: 0; }
+  .muted, th { color: #333 !important; }
+  .chip { border: 1px solid #999; background: #fff !important; color: #000 !important; }
+  td, th { border-bottom: 1px solid #bbb; }
+}
+.invoice-sheet { width: 100%; }
+.row select { width: auto; min-width: 140px; }

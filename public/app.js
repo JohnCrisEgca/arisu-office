@@ -1,6 +1,9 @@
 // Arisu Office front-end. No inline scripts/styles (strict CSP), and all text is inserted with textContent,
 // so nothing the AI or a user writes can ever run as code in the browser.
 
+import { viewStudio } from './studio.js';
+import { viewInvoices } from './invoices.js';
+
 const root = document.getElementById('app');
 const state = { user: null, clients: [], clientId: null, tab: 'office', filter: 'draft' };
 let cleanup = () => {};
@@ -62,6 +65,13 @@ const fmt = (ms) => (ms ? new Date(ms).toLocaleString() : '');
 const isStaff = () => state.user.role !== 'client';
 const mount = (...nodes) => { cleanup(); cleanup = () => {}; root.replaceChildren(...nodes); };
 const field = (label, input) => h('label', {}, label, input);
+
+const ctx = {
+  h, api, run, toast, fmt, field, state, isStaff,
+  redraw: () => screenMain(),
+  reloadClients: () => loadClients(),
+  goPosts: (topic) => { state.prefill = topic; state.tab = 'posts'; screenMain(); }
+};
 
 // ---------- boot ----------
 async function boot() {
@@ -144,7 +154,7 @@ async function logout() {
 
 // ---------- main shell ----------
 function screenMain() {
-  const tabs = [['office', 'Office'], ['posts', 'Posts']];
+  const tabs = [['office', 'Office'], ['posts', 'Posts'], ['studio', 'Studio'], ['invoices', 'Invoices']];
   if (isStaff()) tabs.push(['clients', 'Clients']);
   if (state.user.role === 'owner') tabs.push(['team', 'Team & AI']);
   if (isStaff()) tabs.push(['activity', 'Activity']);
@@ -158,7 +168,12 @@ function screenMain() {
     h('header', { class: 'top' }, h('div', { class: 'brand' }, 'ARISU ', h('span', {}, 'OFFICE')), nav,
       h('div', { class: 'who' }, `${state.user.name} · ${state.user.role}`, h('button', { class: 'btn ghost', onclick: logout }, 'Log out'))),
     content);
-  ({ office: viewOffice, posts: viewPosts, clients: viewClients, team: viewTeam, activity: viewActivity })[state.tab](content);
+  const views = {
+    office: viewOffice, posts: viewPosts, clients: viewClients, activity: viewActivity,
+    studio: (c) => viewStudio(ctx, c), invoices: (c) => viewInvoices(ctx, c),
+    team: async (c) => { await viewTeam(c); await teamExtras(c); }
+  };
+  views[state.tab](content).catch?.((e) => { if (e.status === 401) boot(); else toast(e.message, true); });
 }
 
 // ---------- Office floor ----------
@@ -170,26 +185,26 @@ const ROOMS = {
   brain: { label: 'Shared Brain', x: 0.40, y: 0.44, w: 0.20, h: 0.13, color: '#7ad7ff' }
 };
 
-// "wired" agents do real work for the Facebook service. The rest are planned and shown honestly as not connected.
+// All 18 agents are connected. Each one does real work and never acts on its own: a person reads, approves, or sends.
 const AGENTS = [
-  { id: 'lead', name: 'Arisu', role: 'Chief of Staff', room: 'command', color: '#ff8a3d', wired: true, job: 'Coordinates the team. Shows as working whenever any agent is running.' },
-  { id: 'scout', name: 'Pilar', role: 'Content Strategist', room: 'research', color: '#3dd6c6', wired: true, job: 'Suggests post ideas for a client (Posts tab, "Get ideas").' },
+  { id: 'lead', name: 'Arisu', role: 'Chief of Staff', room: 'command', color: '#ff8a3d', wired: true, job: 'Coordinates the team and shows the daily briefing. Shows as working whenever any agent is running.' },
+  { id: 'plan', name: 'Ina', role: 'Planner', room: 'command', color: '#7ad7ff', wired: true, job: 'Plans a month of post topics (Studio tab).' },
+  { id: 'risk', name: 'Paco', role: 'Risk Watcher', room: 'command', color: '#ff6fa3', wired: true, job: 'Watches for stale drafts, unposted approvals, failed posts and overdue invoices (briefing above). Uses facts from the database, not AI.' },
+  { id: 'hr', name: 'Mina', role: 'Onboarding Guide', room: 'command', color: '#5fdc8a', wired: true, job: 'Proposes a brand profile for a new client. A person applies it (Studio tab).' },
+  { id: 'scout', name: 'Pilar', role: 'Content Strategist', room: 'research', color: '#3dd6c6', wired: true, job: 'Suggests post ideas (Posts tab, "Get ideas").' },
+  { id: 'reader', name: 'Dario', role: 'Trend Analyst', room: 'research', color: '#5fdc8a', wired: true, job: 'Analyses competitor posts or articles you paste in (Studio tab). Does not browse the web.' },
+  { id: 'git', name: 'Kiko', role: 'Page Insights', room: 'research', color: '#7ad7ff', wired: true, job: 'Reads recent Page post counts and says what to try next (Studio tab).' },
   { id: 'script', name: 'Lia', role: 'Copywriter', room: 'content', color: '#ff6fa3', wired: true, job: 'Writes Facebook post drafts in the client\'s voice and language.' },
+  { id: 'design', name: 'Ren', role: 'Visual Briefs', room: 'content', color: '#5fdc8a', wired: true, job: 'Describes the photo or graphic to go with a post. Cannot make images.' },
+  { id: 'video', name: 'Bong', role: 'Reel Planner', room: 'content', color: '#7ad7ff', wired: true, job: 'Writes a Reel plan to film. Cannot edit video.' },
+  { id: 'social', name: 'Ysa', role: 'Publisher', room: 'content', color: '#3dd6c6', wired: true, job: 'Publishes to Facebook, only the exact text a person approved.' },
   { id: 'qa', name: 'Nela', role: 'Quality Reviewer', room: 'ops', color: '#ff6fa3', wired: true, job: 'Reviews every draft for risky claims before a person sees it.' },
   { id: 'support', name: 'Rey', role: 'Comment Replies', room: 'ops', color: '#ff8a3d', wired: true, job: 'Drafts replies to comments. A person posts them; the system never sends replies.' },
-  { id: 'social', name: 'Ysa', role: 'Publisher', room: 'content', color: '#3dd6c6', wired: true, job: 'Publishes to Facebook, only the exact text a person approved.' },
-  { id: 'reader', name: 'Dario', role: 'Literature Analyst', room: 'research', color: '#5fdc8a' },
-  { id: 'git', name: 'Kiko', role: 'Repo Crawler', room: 'research', color: '#7ad7ff' },
-  { id: 'books', name: 'Teo', role: 'Bookkeeper', room: 'ops', color: '#ffc857' },
-  { id: 'pipe', name: 'Maya', role: 'Sales Pipeline', room: 'ops', color: '#a48bff' },
-  { id: 'video', name: 'Bong', role: 'Video Editor', room: 'content', color: '#7ad7ff' },
-  { id: 'design', name: 'Ren', role: 'Thumbnail Designer', room: 'content', color: '#5fdc8a' },
-  { id: 'memo', name: 'Gio', role: 'Note Keeper', room: 'brain', color: '#ffc857' },
-  { id: 'index', name: 'Sol', role: 'Knowledge Indexer', room: 'brain', color: '#a48bff' },
-  { id: 'plan', name: 'Ina', role: 'Planner', room: 'command', color: '#7ad7ff' },
-  { id: 'risk', name: 'Paco', role: 'Risk Watcher', room: 'command', color: '#ff6fa3' },
-  { id: 'hr', name: 'Mina', role: 'Onboarding Guide', room: 'command', color: '#5fdc8a' },
-  { id: 'tests', name: 'Ben', role: 'Automation Tester', room: 'ops', color: '#ffc857' }
+  { id: 'books', name: 'Teo', role: 'Bookkeeper', room: 'ops', color: '#ffc857', wired: true, job: 'Runs invoicing. The software does all the math; Teo only drafts reminder wording. A person confirms every payment.' },
+  { id: 'pipe', name: 'Maya', role: 'Sales Follow-ups', room: 'ops', color: '#a48bff', wired: true, job: 'Drafts a follow-up message for a lead. You send it yourself (Studio tab).' },
+  { id: 'tests', name: 'Ben', role: 'System Tester', room: 'ops', color: '#ffc857', wired: true, job: 'Checks your real OpenAI key, model and Facebook tokens (Team & AI tab).' },
+  { id: 'memo', name: 'Gio', role: 'Note Keeper', room: 'brain', color: '#ffc857', wired: true, job: 'Tidies raw notes. Pinned notes become background for the AI (Studio tab).' },
+  { id: 'index', name: 'Sol', role: 'Search', room: 'brain', color: '#a48bff', wired: true, job: 'Keyword search across notes, drafts and agent output (Studio tab).' }
 ];
 
 function statusOf(a, live) {
@@ -203,6 +218,12 @@ async function viewOffice(content) {
   const detail = h('div', { class: 'stack' });
   const roster = h('div', { class: 'roster' });
   let live = {}; let selected = 'lead'; let raf = 0; let pulse = 0;
+  const briefBody = h('div', { class: 'stack' }, h('p', { class: 'muted' }, 'Loading…'));
+  const briefBox = h('section', { class: 'card stack' }, h('h2', {}, 'Briefing from Arisu and Paco'), briefBody);
+  api('GET', '/api/briefing').then(({ alerts }) => {
+    briefBody.replaceChildren(...(alerts.length ? alerts.map((a) => h('button', { class: 'alert ' + a.level, onclick: () => { state.tab = a.tab; screenMain(); } }, a.text))
+      : [h('p', { class: 'muted' }, 'All clear. Nothing needs attention right now.')]));
+  }).catch(() => briefBody.replaceChildren(h('p', { class: 'muted' }, 'Briefing unavailable.')));
   const ctx = canvas.getContext('2d');
   const pos = {};
   for (const roomId of Object.keys(ROOMS)) {
@@ -262,9 +283,9 @@ async function viewOffice(content) {
     if (hit) { selected = hit; renderSide(); }
   });
 
-  content.append(h('div', { class: 'grid2' },
+  content.append(briefBox, h('div', { class: 'grid2' },
     h('section', { class: 'card' }, h('h2', {}, 'Office floor'), canvas,
-      h('p', { class: 'small muted' }, 'Bright agents do real work for the Facebook service. Dim agents are planned and not connected yet.'), roster),
+      h('p', { class: 'small muted' }, 'All 18 agents are connected. Teal = working right now, green = ready. Every output is for a person to read, approve, or send.'), roster),
     h('section', { class: 'card' }, h('h2', {}, 'Inspector'), detail)));
   renderSide(); draw(); await poll();
   const timer = setInterval(poll, 4000);
@@ -288,6 +309,7 @@ async function viewPosts(content) {
 
   // make posts
   const topic = h('input', { placeholder: 'e.g. New morning batch of pandesal', maxlength: 500 });
+  if (state.prefill) { topic.value = state.prefill; state.prefill = null; }
   const goal = h('input', { placeholder: 'Optional goal, e.g. more walk-ins on weekdays', maxlength: 200 });
   const count = h('select', { value: '3' }, [1, 2, 3, 4, 5].map((n) => h('option', { value: String(n) }, `${n} post${n > 1 ? 's' : ''}`)));
   const ideasBox = h('div', { class: 'stack' });
@@ -480,3 +502,36 @@ async function viewActivity(content) {
 }
 
 boot();
+
+// ---------- Team & AI extras (owner): invoice details and the live system check ----------
+async function teamExtras(content) {
+  const { settings } = await api('GET', '/api/settings');
+  const f = {
+    business_name: h('input', { maxlength: 120, value: settings.business_name }),
+    business_address: h('textarea', { maxlength: 300 }, settings.business_address),
+    payment_instructions: h('textarea', { maxlength: 800, placeholder: 'GCash number, bank name and account…' }, settings.payment_instructions),
+    invoice_footer: h('textarea', { maxlength: 400 }, settings.invoice_footer)
+  };
+  for (const k of ['business_address', 'payment_instructions', 'invoice_footer']) f[k].value = settings[k];
+  const save = h('button', { class: 'btn' }, 'Save invoice details');
+  save.addEventListener('click', () => run(save, async () => {
+    await api('PUT', '/api/settings', Object.fromEntries(Object.entries(f).map(([k, el]) => [k, el.value])));
+    toast('Saved.');
+  }));
+
+  const out = h('div', { class: 'stack' });
+  const check = h('button', { class: 'btn' }, 'Run system check (Ben)');
+  check.addEventListener('click', () => run(check, async () => {
+    const { results } = await api('POST', '/api/admin/system-check', {});
+    const cls = { pass: 'ok', fail: 'bad', warn: 'warn', info: '', skip: '' };
+    out.replaceChildren(h('div', { class: 'scroll' }, h('table', {}, h('tbody', {}, results.map((r) =>
+      h('tr', {}, h('td', {}, h('span', { class: 'chip ' + (cls[r.status] ?? '') }, r.status)), h('td', {}, r.name), h('td', {}, r.detail)))))));
+  }));
+
+  content.append(h('div', { class: 'cols' },
+    h('section', { class: 'card stack' }, h('h2', {}, 'Invoice details'),
+      h('p', { class: 'small muted' }, 'Shown on every invoice. These are billing statements, not BIR official receipts. Ask your accountant what you need.'),
+      field('Business name', f.business_name), field('Address', f.business_address), field('How to pay (default)', f.payment_instructions), field('Footer', f.invoice_footer), save),
+    h('section', { class: 'card stack' }, h('h2', {}, 'System check'),
+      h('p', { class: 'small muted' }, 'Tests your real OpenAI key, model and every connected Facebook Page token. Uses a few tokens of OpenAI credit. Never shows a key.'), check, out)));
+}

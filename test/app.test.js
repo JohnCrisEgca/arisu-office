@@ -407,9 +407,10 @@ test('audit log records who did what, including AI actions and approvals', async
   assert.ok(log.json.entries.some((e) => e.actor_type === 'agent'));
 });
 
-test('office status reflects only wired agents and is scoped for client users', async () => {
+test('office status lists all 18 connected agents and is scoped for client users', async () => {
   const o = await owner('GET', '/api/office');
-  assert.deepEqual(Object.keys(o.json.agents).sort(), ['lead', 'qa', 'scout', 'script', 'social', 'support']);
+  assert.equal(Object.keys(o.json.agents).length, 18);
+  assert.ok(Object.values(o.json.agents).every((a) => a.connected));
   assert.equal((await clientUser('GET', '/api/office')).status, 200);
 });
 
