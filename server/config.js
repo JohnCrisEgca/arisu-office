@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { normalizeGcash } from './util.js';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -49,6 +50,9 @@ export function buildConfig(env = process.env, overrides = {}) {
     graphVersion: env.FB_GRAPH_VERSION || '',
     setupToken: env.SETUP_TOKEN || '',
     timezone: env.TIMEZONE || 'Asia/Manila',
+    // Optional defaults for the invoice GCash block, so the number lives in the host's settings and not in git.
+    gcashName: String(env.GCASH_NAME || '').trim().slice(0, 120),
+    gcashNumber: normalizeGcash(env.GCASH_NUMBER) || '',
     sessionTtlMs: 7 * 24 * 3600 * 1000,
     ...overrides
   };

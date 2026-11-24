@@ -202,6 +202,39 @@ test('GCash number is validated, normalised, and shown on invoices', async () =>
   assert.ok(log.every((e) => !e.detail.includes('09171234567')), 'the number itself must not be in the audit log');
 });
 
+test('one GCash reference can only pay one invoice, and the error never names another client\'s invoice', async () => {
+  const mk = async (clientId) => {
+    const id = (await owner('POST', '/api/invoices', { client_id: clientId, due_date: '2099-05-01', items })).json.invoice.id;
+    await owner('POST', `/api/invoices/${id}/send`);
+    return id;
+  };
+  const a1 = await mk(A.id); const a2 = await mk(A.id); const b1 = await mk(B.id);
+  assert.equal((await clientUser('POST', `/api/invoices/${a1}/report-payment`, { reference: 'GC-5550001234567' })).status, 200);
+  const again = await clientUser('POST', `/api/invoices/${a2}/report-payment`, { reference: '  gc-5550001234567 ' });
+  assert.equal(again.status, 409);
+  assert.doesNotMatch(again.text, /INV-/, 'must not reveal other invoice numbers to a client');
+  const cross = await otherClientUser('POST', `/api/invoices/${b1}/report-payment`, { reference: 'GC-5550001234567' });
+  assert.equal(cross.status, 409);
+  assert.doesNotMatch(cross.text, /INV-/);
+  const staff = await manager('POST', `/api/invoices/${b1}/mark-paid`, { reference: 'gc-5550001234567' });
+  assert.equal(staff.status, 409);
+  assert.match(staff.json.error, /INV-/, 'staff may see which invoice used it');
+  assert.equal((await manager('POST', `/api/invoices/${a1}/mark-paid`, {})).status, 200, 'the invoice that owns the reference can be confirmed');
+});
+
+test('GCASH_NAME / GCASH_NUMBER env defaults fill the invoice block without being stored', async () => {
+  const h2 = await startHarness({ gcashName: 'Env Name', gcashNumber: '09170000000' });
+  try {
+    const o = await h2.setupOwner();
+    const c = (await o('POST', '/api/clients', { name: 'X Shop' })).json.client;
+    const inv3 = (await o('POST', '/api/invoices', { client_id: c.id, due_date: '2099-06-01', items })).json.invoice;
+    assert.equal(inv3.biller.gcash_number, '09170000000');
+    assert.equal(inv3.biller.gcash_name, 'Env Name');
+    await o('PUT', '/api/settings', { gcash_number: '09171112222', gcash_name: 'Saved Name' });
+    assert.equal((await o('GET', '/api/settings')).json.settings.gcash_number, '09171112222', 'a value saved in the app wins over the env default');
+  } finally { await h2.stop(); }
+});
+
 // ---------- Ben: system check ----------
 test('system check verifies OpenAI and Facebook with the real keys and hides secrets', async () => {
   const r = await owner('POST', '/api/admin/system-check');

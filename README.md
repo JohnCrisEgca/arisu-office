@@ -57,6 +57,8 @@ Not built: online payment collection. Invoices are tracked manually (see below).
 - GCash: set your GCash name and number once in Team & AI > Invoice details (the format is checked). Every invoice then shows a "Pay via GCash" block. The client pays in GCash, presses "I have paid this" with the GCash reference number, and you confirm it in your GCash app before pressing "Confirm payment received".
 - Print / Save as PDF from the invoice page.
 - These are billing statements, not BIR official receipts. Ask your accountant what you need.
+- Duplicate protection: one GCash reference number can only pay one invoice.
+- **Automatic GCash is not possible with a personal GCash wallet.** GCash has no open API for individuals; it only reaches small businesses through a payment gateway (such as PayMongo) that requires its own registration. Until you have one, payments are confirmed by hand.
 - To collect money online later you would add a provider (for example PayMongo, Xendit, Stripe) with your own merchant account. That is not included.
 
 ## The approval rules (enforced by the server, covered by tests)

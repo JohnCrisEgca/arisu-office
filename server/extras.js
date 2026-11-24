@@ -1,5 +1,5 @@
 // Agents beyond posts, notes + search, the daily briefing, invoicing, settings, and the system check.
-import { HttpError, str, toCents, peso, isDate } from './util.js';
+import { HttpError, str, toCents, peso, isDate, normalizeGcash } from './util.js';
 import { FbError, recentPostStats } from './facebook.js';
 import { decrypt } from './secrets.js';
 import { runChecks } from './doctor.js';
@@ -158,7 +158,11 @@ export function registerExtras({ cfg, db, ai, route, audit, userActor, agentActo
 
   // ================= settings used on invoices =================
   const SETTING_KEYS = { business_name: 120, business_address: 300, payment_instructions: 800, invoice_footer: 400, gcash_name: 120, gcash_number: 30 };
-  const settings = () => Object.fromEntries(Object.keys(SETTING_KEYS).map((k) => [k, db.prepare('SELECT value FROM settings WHERE key = ?').get(k)?.value ?? '']));
+  const settings = () => {
+    const s = Object.fromEntries(Object.keys(SETTING_KEYS).map((k) => [k, db.prepare('SELECT value FROM settings WHERE key = ?').get(k)?.value ?? '']));
+    if (!s.gcash_number && cfg.gcashNumber) { s.gcash_number = cfg.gcashNumber; if (!s.gcash_name) s.gcash_name = cfg.gcashName; }
+    return s;
+  };
 
   route('GET', '/api/settings', { perm: 'invoices:manage' }, () => ({ settings: settings() }));
   route('PUT', '/api/settings', { perm: 'settings:write' }, ({ user, body }) => {
@@ -169,9 +173,8 @@ export function registerExtras({ cfg, db, ai, route, audit, userActor, agentActo
       let v = str(body[k], { max, field: k });
       if (k === 'gcash_number' && v) {
         // A wrong digit here would send clients' money to a stranger, so the format is checked and normalised.
-        const digits = v.replace(/[\s-]/g, '');
-        if (!/^(09\d{9}|\+639\d{9})$/.test(digits)) throw new HttpError(400, 'GCash number must look like 09171234567.');
-        v = digits.startsWith('+63') ? '0' + digits.slice(3) : digits;
+        v = normalizeGcash(v);
+        if (v === null) throw new HttpError(400, 'GCash number must look like 09171234567.');
       }
       updates[k] = v;
     }
@@ -282,10 +285,17 @@ export function registerExtras({ cfg, db, ai, route, audit, userActor, agentActo
     return { invoice: invoiceView(db.prepare('SELECT * FROM invoices WHERE id = ?').get(inv.id)) };
   });
 
+  // One GCash reference can pay one invoice. This stops a reference being reused to "pay" a second invoice.
+  const refUsedElsewhere = (ref, exceptId) => db.prepare(
+    "SELECT number FROM invoices WHERE id != ? AND status IN ('payment_reported','paid') AND trim(payment_ref) != '' AND lower(trim(payment_ref)) = lower(trim(?))"
+  ).get(exceptId, ref);
+
   route('POST', '/api/invoices/:id/report-payment', { perm: 'invoices:report' }, ({ user, params, body }) => {
     const inv = invoiceFor(user, params.id);
     if (inv.status !== 'sent') throw new HttpError(409, 'Payment can only be reported on a sent invoice.');
     const ref = str(body.reference, { max: 200, min: 3, field: 'Payment reference' });
+    // Deliberately does not name the other invoice: it could belong to a different client.
+    if (refUsedElsewhere(ref, inv.id)) throw new HttpError(409, 'That reference number was already used for another payment. Check your GCash receipt.');
     db.prepare('UPDATE invoices SET status=?, payment_ref=?, updated_at=? WHERE id=?').run('payment_reported', ref, Date.now(), inv.id);
     audit(userActor(user), 'invoice.payment_reported', inv.client_id, `${inv.number} ref ${ref}`);
     return { invoice: invoiceView(db.prepare('SELECT * FROM invoices WHERE id = ?').get(inv.id)) };
@@ -296,6 +306,8 @@ export function registerExtras({ cfg, db, ai, route, audit, userActor, agentActo
     const inv = invoiceFor(user, params.id);
     if (!['sent', 'payment_reported'].includes(inv.status)) throw new HttpError(409, `A ${inv.status} invoice cannot be marked paid.`);
     const ref = 'reference' in body ? str(body.reference, { max: 200, field: 'Reference' }) : inv.payment_ref;
+    const dup = ref ? refUsedElsewhere(ref, inv.id) : null;
+    if (dup) throw new HttpError(409, `That reference number was already used to pay ${dup.number}. One GCash payment can only be counted once.`);
     db.prepare('UPDATE invoices SET status=?, payment_ref=?, paid_at=?, paid_confirmed_by=?, updated_at=? WHERE id=?').run('paid', ref, Date.now(), user.id, Date.now(), inv.id);
     audit(userActor(user), 'invoice.paid', inv.client_id, `${inv.number} ${peso(inv.total_cents)} ref ${ref}`);
     return { invoice: invoiceView(db.prepare('SELECT * FROM invoices WHERE id = ?').get(inv.id)) };

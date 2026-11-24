@@ -17,6 +17,14 @@ export function toCents(v, field = 'Amount') {
   return Number(m[1]) * 100 + Number((m[2] ?? '').padEnd(2, '0') || 0);
 }
 
+// Returns "09XXXXXXXXX", "" for empty input, or null when the number is not a valid PH mobile number.
+export function normalizeGcash(v) {
+  const d = String(v ?? '').replace(/[\s-]/g, '');
+  if (!d) return '';
+  if (!/^(09\d{9}|\+639\d{9})$/.test(d)) return null;
+  return d.startsWith('+63') ? '0' + d.slice(3) : d;
+}
+
 export const peso = (cents) =>
   '₱' + (cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
