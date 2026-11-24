@@ -510,7 +510,9 @@ async function teamExtras(content) {
     business_name: h('input', { maxlength: 120, value: settings.business_name }),
     business_address: h('textarea', { maxlength: 300 }, settings.business_address),
     payment_instructions: h('textarea', { maxlength: 800, placeholder: 'GCash number, bank name and account…' }, settings.payment_instructions),
-    invoice_footer: h('textarea', { maxlength: 400 }, settings.invoice_footer)
+    invoice_footer: h('textarea', { maxlength: 400 }, settings.invoice_footer),
+    gcash_name: h('input', { maxlength: 120, value: settings.gcash_name, placeholder: 'Name exactly as shown in GCash' }),
+    gcash_number: h('input', { maxlength: 30, inputmode: 'tel', value: settings.gcash_number, placeholder: '09171234567' })
   };
   for (const k of ['business_address', 'payment_instructions', 'invoice_footer']) f[k].value = settings[k];
   const save = h('button', { class: 'btn' }, 'Save invoice details');
@@ -531,7 +533,10 @@ async function teamExtras(content) {
   content.append(h('div', { class: 'cols' },
     h('section', { class: 'card stack' }, h('h2', {}, 'Invoice details'),
       h('p', { class: 'small muted' }, 'Shown on every invoice. These are billing statements, not BIR official receipts. Ask your accountant what you need.'),
-      field('Business name', f.business_name), field('Address', f.business_address), field('How to pay (default)', f.payment_instructions), field('Footer', f.invoice_footer), save),
+      field('Business name', f.business_name), field('Address', f.business_address),
+      h('p', { class: 'small muted' }, 'GCash: shown on every invoice. Double-check the number. A wrong digit sends your clients\' money to someone else.'),
+      field('GCash account name', f.gcash_name), field('GCash number', f.gcash_number),
+      field('Other ways to pay (optional)', f.payment_instructions), field('Footer', f.invoice_footer), save),
     h('section', { class: 'card stack' }, h('h2', {}, 'System check'),
       h('p', { class: 'small muted' }, 'Tests your real OpenAI key, model and every connected Facebook Page token. Uses a few tokens of OpenAI credit. Never shows a key.'), check, out)));
 }

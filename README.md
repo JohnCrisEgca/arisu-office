@@ -54,6 +54,7 @@ Not built: online payment collection. Invoices are tracked manually (see below).
 - Flow: draft > sent (locked; fix mistakes by voiding) > client may report a payment with a reference > a team member confirms > paid. Only a person on the team can mark paid.
 - Clients see only invoices that were sent to them. Overdue is shown automatically (Asia/Manila date; set `TIMEZONE` to change).
 - Teo drafts reminder wording from database facts (number, amount, due date). A person sends it.
+- GCash: set your GCash name and number once in Team & AI > Invoice details (the format is checked). Every invoice then shows a "Pay via GCash" block. The client pays in GCash, presses "I have paid this" with the GCash reference number, and you confirm it in your GCash app before pressing "Confirm payment received".
 - Print / Save as PDF from the invoice page.
 - These are billing statements, not BIR official receipts. Ask your accountant what you need.
 - To collect money online later you would add a provider (for example PayMongo, Xendit, Stripe) with your own merchant account. That is not included.

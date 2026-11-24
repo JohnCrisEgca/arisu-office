@@ -45,7 +45,7 @@ export async function viewInvoices(ctx, content) {
       }
     } else if (inv.status === 'sent') {
       buttons.push(act('I have paid this', 'good', async () => {
-        const ref = prompt('Payment reference (for example the GCash or bank reference number):');
+        const ref = prompt('Enter the GCash reference number from your payment receipt:');
         if (!ref) return;
         await post('report-payment', { reference: ref }); toast('Thanks. The team will confirm it.'); await open(inv.id);
       }));
@@ -61,7 +61,10 @@ export async function viewInvoices(ctx, content) {
         h('div', { class: 'scroll' }, h('table', {}, h('thead', {}, h('tr', {}, ['Description', 'Qty', 'Unit price', 'Amount'].map((t) => h('th', {}, t)))),
           h('tbody', {}, inv.items.map((i) => h('tr', {}, h('td', {}, i.description), h('td', {}, String(i.qty)), h('td', {}, peso(i.unit_cents)), h('td', {}, peso(i.line_cents)))),
             h('tr', {}, h('td', { colspan: '3', class: 'right' }, h('b', {}, 'Total')), h('td', {}, h('b', {}, peso(inv.total_cents))))))),
-        inv.payment_instructions ? h('div', {}, h('b', {}, 'How to pay'), h('p', { class: 'pre' }, inv.payment_instructions)) : null,
+        b.gcash_number ? h('div', { class: 'callout' }, h('b', {}, 'Pay via GCash'),
+          h('div', {}, `${b.gcash_name ? b.gcash_name + ' · ' : ''}${b.gcash_number}`),
+          h('p', { class: 'small' }, `Please write ${inv.number} in the GCash message. After paying, keep the GCash reference number.`)) : null,
+        inv.payment_instructions ? h('div', {}, h('b', {}, b.gcash_number ? 'Other ways to pay' : 'How to pay'), h('p', { class: 'pre' }, inv.payment_instructions)) : null,
         inv.payment_ref ? h('p', { class: 'small' }, `Payment reference: ${inv.payment_ref}${inv.paid_at ? ` · confirmed ${fmt(inv.paid_at)}` : ' (waiting for the team to confirm)'}`) : null,
         inv.notes ? h('p', { class: 'pre' }, inv.notes) : null,
         b.invoice_footer ? h('p', { class: 'small muted pre' }, b.invoice_footer) : null),

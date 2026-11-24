@@ -185,6 +185,23 @@ test('voiding works and invoice settings are owner-only', async () => {
   assert.equal(view.json.invoice.biller.business_name, 'Arisu Digital');
 });
 
+test('GCash number is validated, normalised, and shown on invoices', async () => {
+  assert.equal((await owner('PUT', '/api/settings', { gcash_number: '0917 123 456' })).status, 400);
+  assert.equal((await owner('PUT', '/api/settings', { gcash_number: '12345678901' })).status, 400);
+  assert.equal((await manager('PUT', '/api/settings', { gcash_number: '09171234567' })).status, 403);
+  const ok = await owner('PUT', '/api/settings', { gcash_name: 'Juan Dela Cruz', gcash_number: '+63 917-123-4567' });
+  assert.equal(ok.status, 200, ok.text);
+  assert.equal(ok.json.settings.gcash_number, '09171234567');
+  const bad = await owner('PUT', '/api/settings', { business_name: 'Should not save', gcash_number: 'abc' });
+  assert.equal(bad.status, 400);
+  assert.notEqual((await owner('GET', '/api/settings')).json.settings.business_name, 'Should not save', 'a failed save must not half-apply');
+  const inv2 = (await manager('POST', '/api/invoices', { client_id: A.id, due_date: '2099-04-01', items })).json.invoice;
+  assert.equal(inv2.biller.gcash_number, '09171234567');
+  assert.equal(inv2.biller.gcash_name, 'Juan Dela Cruz');
+  const log = (await owner('GET', '/api/audit?limit=300')).json.entries.filter((e) => e.action === 'settings.updated');
+  assert.ok(log.every((e) => !e.detail.includes('09171234567')), 'the number itself must not be in the audit log');
+});
+
 // ---------- Ben: system check ----------
 test('system check verifies OpenAI and Facebook with the real keys and hides secrets', async () => {
   const r = await owner('POST', '/api/admin/system-check');

@@ -157,17 +157,28 @@ export function registerExtras({ cfg, db, ai, route, audit, userActor, agentActo
   });
 
   // ================= settings used on invoices =================
-  const SETTING_KEYS = { business_name: 120, business_address: 300, payment_instructions: 800, invoice_footer: 400 };
+  const SETTING_KEYS = { business_name: 120, business_address: 300, payment_instructions: 800, invoice_footer: 400, gcash_name: 120, gcash_number: 30 };
   const settings = () => Object.fromEntries(Object.keys(SETTING_KEYS).map((k) => [k, db.prepare('SELECT value FROM settings WHERE key = ?').get(k)?.value ?? '']));
 
   route('GET', '/api/settings', { perm: 'invoices:manage' }, () => ({ settings: settings() }));
   route('PUT', '/api/settings', { perm: 'settings:write' }, ({ user, body }) => {
+    // Validate everything first so a bad value never leaves the settings half-saved.
+    const updates = {};
     for (const [k, max] of Object.entries(SETTING_KEYS)) {
-      if (k in body) {
-        db.prepare('INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(k, str(body[k], { max, field: k }));
+      if (!(k in body)) continue;
+      let v = str(body[k], { max, field: k });
+      if (k === 'gcash_number' && v) {
+        // A wrong digit here would send clients' money to a stranger, so the format is checked and normalised.
+        const digits = v.replace(/[\s-]/g, '');
+        if (!/^(09\d{9}|\+639\d{9})$/.test(digits)) throw new HttpError(400, 'GCash number must look like 09171234567.');
+        v = digits.startsWith('+63') ? '0' + digits.slice(3) : digits;
       }
+      updates[k] = v;
     }
-    audit(userActor(user), 'settings.updated', null, Object.keys(body).filter((k) => k in SETTING_KEYS).join(', '));
+    for (const [k, v] of Object.entries(updates)) {
+      db.prepare('INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(k, v);
+    }
+    audit(userActor(user), 'settings.updated', null, Object.keys(updates).join(', ')); // names only, never the values
     return { settings: settings() };
   });
 
