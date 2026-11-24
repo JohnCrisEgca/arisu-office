@@ -4,6 +4,10 @@ An AI office that prepares Facebook content for small businesses. AI "employees"
 
 No dependencies. It uses only what ships with Node 22.5+ (built-in SQLite, scrypt, `fetch`), so there is no `npm install`.
 
+## Put it online (one click)
+
+[Deploy to Render](https://render.com/deploy?repo=https://github.com/JohnCrisEgca/arisu-office): reads `render.yaml`, asks for your own OpenAI key and model, and gives you an `https://...onrender.com` address. Full steps and what to check afterwards are in `docs/DEPLOY.md`.
+
 ## Run it
 
 ```bash

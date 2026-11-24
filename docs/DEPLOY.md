@@ -4,8 +4,10 @@ Arisu Office is a normal Node 22 web server with a SQLite file. It needs: HTTPS,
 
 ## Option A: Render (simplest)
 
-1. Sign in at render.com and connect your GitHub account.
-2. New > Blueprint > pick `JohnCrisEgca/arisu-office`. It reads `render.yaml`.
+**One click:** https://render.com/deploy?repo=https://github.com/JohnCrisEgca/arisu-office
+
+1. Sign in at render.com (create an account if you do not have one). The link above reads `render.yaml` and shows you what it will create.
+2. Approve it. (Manual route: New > Blueprint > pick `JohnCrisEgca/arisu-office`.)
 3. When asked, paste **your own** `OPENAI_API_KEY` and set `OPENAI_MODEL` (see step 6).
 4. Deploy. Render gives you an `https://...onrender.com` link. That is your app's link.
 5. In the service's Environment tab, copy the generated `SETUP_TOKEN`. Open the link, create the owner account and paste the token.

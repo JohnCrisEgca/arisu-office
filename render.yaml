@@ -1,10 +1,11 @@
-# Render Blueprint. Check Render's current docs: field names and plan names change.
-# SQLite needs a persistent disk, which Render only offers on paid instances.
+# Render Blueprint (field names checked against Render's Blueprint spec on 2026-11-24).
+# No `plan` is set, so Render uses its default paid plan for new services (0.5c-512mb at the time of checking).
+# SQLite needs the persistent disk below. Free services cannot be scaled or relied on for this; check Render's Disks docs.
 services:
   - type: web
     name: arisu-office
     runtime: docker
-    plan: starter
+    autoDeployTrigger: "off"   # push to GitHub does not redeploy by itself; deploy manually from the dashboard
     healthCheckPath: /api/health
     disk:
       name: arisu-data
