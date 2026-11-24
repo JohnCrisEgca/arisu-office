@@ -1,0 +1,13 @@
+{
+  "name": "arisu-office",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Arisu Office: AI office that drafts Facebook posts for small businesses. Humans approve before anything is published.",
+  "type": "module",
+  "engines": { "node": ">=22.5" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server/index.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
+  },
+  "license": "UNLICENSED"
+}
